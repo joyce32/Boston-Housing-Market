@@ -1,0 +1,167 @@
+---
+title: "An Analysis of the Boston Housing Market Data"
+author: "Tejaswi Rachapudi, tejaswi2"
+date: "10/25/2018"
+output: html_document
+---
+## Methods
+This dataset started as a study to observe how factors like air pollution affect the Boston housing market. The dataset contains 506 observations from 91 Boston towns. The variables in the dataset include the following:
+
+ * **crim** - per capita crime rate by town
+ * **zn** - proportion of residential land zoned for lots over 25,000 sq. ft.
+ * **indus** - proportion of non-retail business acres per town 
+ * **chas** - 1 if tract bounds Charles River, 0 otherwise (dummy variable)
+ * **nox** - concentration of nitric oxide (parts per 10 million)
+ * **rm** - average number of rooms per dwelling
+ * **age** - proportion of owner-occupied units built before 1940
+ * **dis** - weighted distances to five Boston employment centers
+ * **rad** - index of accessibility to radial highways
+ * **tax** - full-value property-tax rate (per $10,000)
+ * **ptratio** - pupil-to-teacher ratio (by town)
+ * **black** - 1000(Bk - 0.63)^2, where Bk is proportion of African-Americans by town
+ * **lstat** - % lower status of the population
+ * **medv** - median value of owner-occupied homes (in $1000s)
+ 
+
+```{r }
+library(MASS)
+set.seed(676617567)  
+train.test = sample(1:dim(Boston)[1])
+Boston.train = Boston[train.test[1:406], ]
+Boston.test  = Boston[train.test[407:506], ]
+```
+In order to work with the data, we have split it into a training data set and a test data set. 
+
+I will first create a model using all of the variables as predictors.
+
+```{r}
+full_model = lm(medv ~ crim + zn + indus + chas + nox + rm + age + dis + rad + tax + ptratio + black + lstat, data = Boston.train)
+summary(full_model)
+```
+By fitting a linear regression model with **medv** as the response and all other variables as predictor variables, I can narrow down my possible predictor variables by observing their p-values. I am choosing an alpha level of 0.01 with which I can analyze these variables. There are 13 predictors in this model. The null and alternative hypotheses are:
+
+$H_0: \beta_1 = \beta_2 = \cdots = \beta_{13} = 0$
+
+$H_1: \text{At least one of } \beta_j \neq 0, j = 1, 2, \cdots, 13$
+
+Since **indus** has a p-value of 0.8875 > 0.01, I fail to reject $H_0$.
+
+Since **age** has a p-value of 0.4704 > 0.01, I fail to reject $H_0$.
+
+
+The above variables do not seem to have a significant relationship with **medv**. The test statistic for this model, following an F-test, is F = 85.36. The overall p-value for the F-test (< 2.2e^-16) is less than the alpha level and R^2 = 0.739 (73.9% of the observed variation in **medv** is explained by a linear relationship with the 13 variables), so we know this model is better than a model with no independent variables. However, fitting a model without the variables above could lead to a better representation. 
+
+Now, I will try fitting a model without **indus** and **age**
+
+```{r}
+model_without_2 = lm(medv ~ . - indus - age, data = Boston.train)
+summary(model_without_2)
+```
+There are 11 predictors in this model. The null and alternative hypotheses are:
+
+$H_0: \beta_1 = \beta_2 = \cdots = \beta_{11} = 0$
+
+$H_1: \text{At least one of } \beta_j \neq 0, j = 1, 2, \cdots, 11$
+
+Since the model has a p-value less than 0.01, we must reject the $H_0$. This means there is a linear relationship between **medv** and at least some of these 11 predictor variables. 
+
+If I calculate the RMSE of my first model containing all of the variables, I get:
+
+```{r}
+rmse = sqrt(mean(resid(full_model)^2))
+rmse
+```
+
+```{r}
+rmse = sqrt(mean(resid(model_without_2)^2))
+rmse
+```
+
+The RMSE of my second model containing all variables except **indus** and **age** is 4.613. These RMSEs are very close, and very low. This does not tell me much about which model is better, since the values are so similar. 
+
+Now, I will try building a model using **crim**, **nox**, **rm**, **dis**, **ptratio**, and **lstat**. Intuitively, these variables to me seem like the most significant in terms of impacting the median value of houses.
+
+```{r}
+intuition_model = lm(medv ~ crim + nox + rm + dis + ptratio + lstat, data = Boston.train)
+summary(intuition_model)
+rmse = sqrt(mean(resid(intuition_model)^2))
+rmse
+```
+Based on the results, I see that **crim** has a p-value of 0.053 > 0.01, so **crim** is insignificant, contrary to what I had previously thought. The R-squared of this model is only 0.7023 (70.23% of the observed variation in **medv** is explained by a linear relationship with these variables), which is lower than the R^2 of the previous two models. When I calculate the RMSE for this model, I see that this value, 4.923, is larger than the previous two calculated RMSEs. However, the smaller the RMSE, the more confident I can be in the model. Although this goes against my intuition, I am not confident about this model, so I will be disregarding it and going back to the model without **indus** and **age**.
+
+## Results
+
+The final model I am selecting to predict medv is below. This model includes the predictor variables **crim**, **zn**, **chas**, **nox**, **rm**, **dis**, **rad**, **tax**, **ptratio**, **black**, **lstat**. 
+
+```{r}
+final_model = lm(medv ~ crim +  zn + chas + nox + rm + dis + rad + tax + ptratio + black + lstat, data = Boston.train)
+summary(final_model)
+```
+
+
+## Interpretation of Variables 
+```{r}
+summary(model_without_2)$coefficients
+```
+Given these coefficient estimates of this final model, I can make many conclusions about the predictor variables.
+
+intercept = $\beta_0$ = 37.0014
+The intercept tells us the median value of owner-occupied homes in Boston is $37,000 when all other variables are 0, which is not realistic.
+
+**crim** = $\beta_1$ = -0.1097
+For every increase in crime rate, the median value of a home decreases by \$109.70.
+
+**zn** = $\beta_2$ = 0.0438
+\$43.8 is the estimated change in median value of homes for an increase of proportion of residential land zoned for lots over 25,000 sq.ft.
+
+**chas** = $\beta_3$ = 3.8315
+$3,831.50 is the estimated change in median value of homes for every time a tract bounds the Charles River.
+
+**nox** = $\beta_4$ = -17.8266
+For every increase in parts per 10 million of nitric oxide concentration, the median value of homes decreases by $17,827.
+
+**rm** = $\beta_5$ = 3.7066
+For each additional room per dwelling, the median value of homes increases by $3,706.60. 
+
+**dis** = $\beta_6$ = -1.4964
+For every increase in weighted distance to five Boston employment centers, the median value of homes decreases by $1,496.40. 
+
+**rad** = $\beta_7$ = 0.3129
+$312.90 is the estimated change in median value of homes for every unit of accessibility to radial highways. 
+
+**tax** = $\beta_8$ = -0.0115
+For every increase in unit of full-value property tax rate per $10,000, the median value of homes decreases by \$11.50.
+
+**ptratio** = $\beta_9$ = -0.9737
+For every increase in pupil-teacher ratio, the median value of homes decreases by $973.70.
+
+**black** = $\beta_{10}$ = 0.0094
+For every increase in unit of African-Americans by town, calculated by 1000(Bk - 0.63)^2, where Bk is the proportion of African-Americans, the median value of homes increases by $9.40.
+
+**lstat** = $\beta_{11}$ = -0.5016
+For every increase in percent of lower status of the population, the median value of homes decreases by $501.60.
+
+
+## Testing My Model
+
+```{r}
+rmse = sqrt(mean(resid(final_model)^2))
+rmse
+
+pred = predict(final_model, Boston.test)
+errors = Boston.test$medv - pred
+rmse_errors = sqrt(mean(errors)^2)
+rmse_errors
+mean(errors)
+sd(errors)
+```
+
+The RMSE I calculated using the train data is 4.613, while the RMSE for the test data is 0.5435. This is a very low value, so my final model still works with the unseen data. 
+
+
+
+   
+
+
+
+
